@@ -42,6 +42,8 @@ Before you can publish your packages with provenance, you must:
   - GitHub Actions. For more information, see "[Publishing packages with provenance via GitHub Actions][github-provenance]."
   - GitLab CI/CD. For more information, see "[Publishing packages with provenance via GitLab CI/CD][gitlab-provenance]."
 
+**Note:** If you use [trusted publishing](/trusted-publishers), provenance attestations are automatically generated for your packages without requiring the `--provenance` flag. This provides enhanced security and eliminates the need for access tokens in your CI/CD workflows.
+
 ## Publishing packages with provenance via GitHub Actions
 
 In order to establish provenance, you must use a supported cloud CI/CD provider and a cloud-hosted runner to publish your packages. GitHub Actions is a supported CI/CD platform that allows you to automate software development tasks. For more information, see [GitHub Actions][github-actions] in the GitHub documentation.
@@ -89,11 +91,12 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: '20.x'
+          node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false  # never use caching in release builds
       - run: npm ci
       - run: npm publish --provenance --access public
         env:
@@ -121,7 +124,7 @@ If you publish your packages with tools that do not directly invoke the `npm pub
 
 <Note>
 
-**Note:** At this time, `yarn` is not a supported tool for publishing your packages with provenance.
+**Note:** To publish packages with provenance using Yarn, [v4.9.0](https://github.com/yarnpkg/berry/releases/tag/%40yarnpkg%2Fcli%2F4.9.0) or greater is required.
 
 </Note>
 

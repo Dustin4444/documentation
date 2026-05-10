@@ -1,15 +1,28 @@
 import React from 'react'
-import {ActionList, ActionMenu, Box} from '@primer/react'
+import {ActionList, ActionMenu} from '@primer/react'
 import * as getNav from '../util/get-nav'
 import usePage from '../hooks/use-page'
 import {LinkNoUnderline} from './link'
 import useLocationChange from '../hooks/use-location-change'
+import styled from 'styled-components'
 
-const VariantItem = ({title, shortName, url, active}) => (
-  <ActionList.Item as={LinkNoUnderline} to={url} state={{scrollUpdate: false}} id={shortName} active={active}>
-    {title}
-  </ActionList.Item>
-)
+import * as styles from './variant-select.module.css'
+
+const StyledOverlay = styled(ActionMenu.Overlay)`
+  background-color: var(--bgColor-default, #ffffff) !important;
+  border-color: var(--borderColor-default, #d0d7de);
+  border-width: 1px;
+  border-style: solid;
+  box-shadow: var(--shadow-resting-medium, 0 3px 6px rgba(140, 149, 159, 0.15));
+`
+
+const VariantItem = ({title, shortName, url, active}) => {
+  return (
+    <ActionList.Item state={{scrollUpdate: false}} id={shortName} active={active} tabIndex={null}>
+      <LinkNoUnderline to={url}>{title}</LinkNoUnderline>
+    </ActionList.Item>
+  )
+}
 
 const useVariantFocus = () => {
   const locationChange = useLocationChange()
@@ -28,17 +41,25 @@ const VariantMenu = ({title, latest, current, prerelease, legacy}) => {
   const [open, setOpen] = React.useState(false)
   const anchorRef = useVariantFocus()
   const labelId = 'label-versions-list-item'
+  const locationChange = useLocationChange()
+
+  React.useEffect(() => {
+    if (locationChange.change && getNav.didVariantChange(locationChange.previous, locationChange.current)) {
+      setOpen(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- granular deps are intentional; locationChange.current is a URL string, not a ref
+  }, [locationChange.change, locationChange.current, locationChange.previous])
 
   return (
     <>
-      <Box as="p" sx={{m: 0}} id={labelId}>
+      <p id={labelId} className={styles.Box}>
         Select CLI Version:
-      </Box>
+      </p>
       <ActionMenu anchorRef={anchorRef} open={open} onOpenChange={setOpen}>
-        <ActionMenu.Button aria-describedby={labelId} sx={{width: ['100%', null, 'auto']}}>
+        <ActionMenu.Button aria-describedby={labelId} className={styles.menuButton}>
           {title}
         </ActionMenu.Button>
-        <ActionMenu.Overlay width="auto" onEscape={() => setOpen(false)}>
+        <StyledOverlay width="auto" onEscape={() => setOpen(false)}>
           <ActionList aria-labelledby={labelId}>
             <ActionList.Group>
               <ActionList.GroupHeading>Current</ActionList.GroupHeading>
@@ -53,7 +74,7 @@ const VariantMenu = ({title, latest, current, prerelease, legacy}) => {
               ))}
             </ActionList.Group>
           </ActionList>
-        </ActionMenu.Overlay>
+        </StyledOverlay>
       </ActionMenu>
     </>
   )
@@ -105,9 +126,9 @@ const useVariants = () => {
 const VariantSelect = () => {
   const variants = useVariants()
   return variants ? (
-    <Box sx={{mt: 2, mb: 3}}>
+    <div className={styles.Box_1}>
       <VariantMenu {...variants} />
-    </Box>
+    </div>
   ) : null
 }
 

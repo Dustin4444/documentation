@@ -53,6 +53,18 @@ This command installs a package and any packages that it depends on. If the pack
 
 See [package-lock.json](/cli/v11/configuring-npm/package-lock-json) and [`npm shrinkwrap`](/cli/v11/commands/npm-shrinkwrap).
 
+#### How `npm install` uses `package-lock.json`
+
+When you run `npm install` without arguments, npm compares `package.json` and `package-lock.json`:
+
+- **If the lockfile's resolved versions satisfy the `package.json` ranges:** npm uses the exact versions from `package-lock.json` to ensure reproducible builds across environments.
+
+- **If the ranges don't match:** npm resolves new versions that satisfy the `package.json` ranges and updates `package-lock.json` accordingly. This happens when you modify version ranges in `package.json` (e.g., changing `^7.0.0` to `^8.0.0`). Note that changing a range within the same major version (e.g., `^7.0.0` to `^7.1.0`) will only update the metadata in the lockfile if the currently installed version still satisfies the new range.
+
+In essence, `package-lock.json` locks your dependencies to specific versions, but `package.json` is the source of truth for acceptable version ranges. When the lockfile's versions satisfy the `package.json` ranges, the lockfile wins. When they conflict, `package.json` wins and the lockfile is updated.
+
+If you want to install packages while ensuring that `package.json` is not modified and that both files are strictly in sync, use [`npm ci`](/cli/v11/commands/npm-ci) instead.
+
 A `package` is:
 
 - a) a folder containing a program described by a [`package.json`](/cli/v11/configuring-npm/package-json) file
@@ -95,7 +107,6 @@ Even if you never publish your package, you can still get a lot of benefits of u
   Install a package that is sitting on the filesystem. Note: if you just want to link a dev directory into your npm root, you can do this more easily by using [`npm link`](/cli/v11/commands/npm-link).
 
   Tarball requirements:
-
   - The filename _must_ use `.tar`, `.tar.gz`, or `.tgz` as the extension.
   - The package contents should reside in a subfolder inside the tarball (usually it is called `package/`). npm strips one directory layer when installing the package (an equivalent of `tar x --strip-components=1` is run).
   - The package must contain a `package.json` file with `name` and `version` properties.
@@ -122,6 +133,8 @@ Even if you never publish your package, you can still get a lot of benefits of u
 
   In most cases, this will install the version of the modules tagged as `latest` on the npm registry.
 
+  **Note:** When installing by name without specifying a version or tag, npm prioritizes versions that match the current Node.js version based on the package's `engines` field. If the `latest` tag points to a version incompatible with your current Node.js version, npm will install the newest compatible version instead. To install a specific version regardless of `engines` compatibility, explicitly specify the version or tag: `npm install <name>@latest`.
+
   Example:
 
   ```bash
@@ -129,7 +142,6 @@ Even if you never publish your package, you can still get a lot of benefits of u
   ```
 
   `npm install` saves any specified packages into `dependencies` by default. Additionally, you can control where and how they get saved with some additional flags:
-
   - `-P, --save-prod`: Package will appear in your `dependencies`. This is the default unless `-D` or `-O` are present.
 
   - `-D, --save-dev`: Package will appear in your `devDependencies`.
@@ -141,7 +153,6 @@ Even if you never publish your package, you can still get a lot of benefits of u
   - `--no-save`: Prevents saving to `dependencies`.
 
   When using any of the above options to save dependencies to your package.json, there are two additional, optional flags:
-
   - `-E, --save-exact`: Saved dependencies will be configured with an exact version rather than using npm's default semver range operator.
 
   - `-B, --save-bundle`: Saved dependencies will also be added to your `bundleDependencies` list.
@@ -212,6 +223,15 @@ Even if you never publish your package, you can still get a lot of benefits of u
   npm install @myorg/privatepackage@"16 - 17"
   ```
 
+  **Prerelease versions:** By default, version ranges only match stable versions. To include prerelease versions, they must be explicitly specified in the range. Prerelease versions are tied to a specific version triple (major.minor.patch). For example, `^1.2.3-beta.1` will only match prereleases for `1.2.x`, not `1.3.x`. To match all prereleases for a major version, use a range like `^1.0.0-0`, which will include all `1.x.x` prereleases.
+
+  Example:
+
+  ```bash
+  npm install package@^1.2.3-beta.1  # Matches 1.2.3-beta.1, 1.2.3-beta.2, 1.2.4-beta.1, etc.
+  npm install package@^1.0.0-0       # Matches all 1.x.x prereleases and stable versions
+  ```
+
 - `npm install <git remote url>`:
 
   Installs the package from the hosted git provider, cloning it with `git`. For a full git remote url, only that URL will be attempted.
@@ -229,7 +249,6 @@ Even if you never publish your package, you can still get a lot of benefits of u
   If the package being installed contains a `prepare` script, its `dependencies` and `devDependencies` will be installed, and the prepare script will be run, before the package is packaged and installed.
 
   The following git environment variables are recognized by npm and will be added to the environment when running git:
-
   - `GIT_ASKPASS`
   - `GIT_EXEC_PATH`
   - `GIT_PROXY_COMMAND`
@@ -316,6 +335,8 @@ npm install sax@">=0.1.0 <0.2.0" bench supervisor
 
 The `--tag` argument will apply to all of the specified install targets. If a tag with the given name exists, the tagged version is preferred over newer versions.
 
+**Note:** The `--tag` option only affects packages specified on the command line. It does not override version ranges specified in `package.json`. For example, if `package.json` specifies `"foo": "^1.0.0"` and you run `npm install --tag beta`, npm will still install a version matching `^1.0.0` even if the `beta` tag points to a different version. To install a tagged version, specify the package explicitly: `npm install foo@beta`.
+
 The `--dry-run` argument will report in the usual way what the install would have done without actually installing anything.
 
 The `--package-lock-only` argument will only update the `package-lock.json`, instead of checking `node_modules` and downloading dependencies.
@@ -386,7 +407,7 @@ Only install direct dependencies in the top level `node_modules`, but hoist on d
 
 #### `omit`
 
-- Default: 'dev' if the `NODE_ENV` environment variable is set to 'production', otherwise empty.
+- Default: 'dev' if the `NODE_ENV` environment variable is set to 'production'; otherwise, empty.
 - Type: "dev", "optional", or "peer" (can be set multiple times)
 
 Dependency types to omit from the installation tree on disk.
@@ -460,7 +481,43 @@ Note that this will generally make installs run slower, and be much noisier, but
 
 If true, npm does not run scripts specified in package.json files.
 
-Note that commands explicitly intended to run a particular script, such as `npm start`, `npm stop`, `npm restart`, `npm test`, and `npm run-script` will still run their intended script if `ignore-scripts` is set, but they will _not_ run any pre- or post-scripts.
+Note that commands explicitly intended to run a particular script, such as `npm start`, `npm stop`, `npm restart`, `npm test`, and `npm run` will still run their intended script if `ignore-scripts` is set, but they will _not_ run any pre- or post-scripts.
+
+#### `allow-directory`
+
+- Default: "all"
+- Type: "all", "none", or "root"
+
+Limits the ability for npm to install dependencies from directories. That is, dependencies that point to a directory instead of a version or semver range. Please note that this could leave your tree incomplete and some packages may not function as intended or designed. Changing this setting will not remove dependencies that are already installed.
+
+`all` allows any directories to be installed. `none` prevents any directories from being installed. `root` only allows directories defined in your project's package.json to be installed. Also allows directory dependencies to be used for other commands like `npm view`
+
+#### `allow-file`
+
+- Default: "all"
+- Type: "all", "none", or "root"
+
+Limits the ability for npm to install dependencies from tarball files. That is, dependencies that point to a local tarball file instead of a version or semver range. Please note that this could leave your tree incomplete and some packages may not function as intended or designed. Changing this setting will not remove dependencies that are already installed.
+
+`all` allows any tarball file to be installed. `none` prevents any tarball file from being installed. `root` only allows tarball files defined in your project's package.json to be installed. Also allows tarball file dependencies to be used for other commands like `npm view`
+
+#### `allow-git`
+
+- Default: "all"
+- Type: "all", "none", or "root"
+
+Limits the ability for npm to fetch dependencies from git references. That is, dependencies that point to a git repo instead of a version or semver range. Please note that this could leave your tree incomplete and some packages may not function as intended or designed. Changing this setting will not remove dependencies that are already installed.
+
+`all` allows any git dependencies to be fetched and installed. `none` prevents any git dependencies from being fetched and installed. `root` only allows git dependencies defined in your project's package.json to be fetched and installed. Also allows git dependencies to be fetched for other commands like `npm view`
+
+#### `allow-remote`
+
+- Default: "all"
+- Type: "all", "none", or "root"
+
+Limits the ability for npm to fetch dependencies from urls. That is, dependencies that point to a tarball url instead of a version or semver range. Please note that this could leave your tree incomplete and some packages may not function as intended or designed. Changing this setting will not remove dependencies that are already installed.
+
+`all` allows any url to be installed. `none` prevents any url from being installed. `root` only allows urls defined in your project's package.json to be installed. Also allows url dependencies to be used for other commands like `npm view`
 
 #### `audit`
 
@@ -468,6 +525,30 @@ Note that commands explicitly intended to run a particular script, such as `npm 
 - Type: Boolean
 
 When "true" submit audit reports alongside the current npm command to the default registry and all registries configured for scopes. See the documentation for [`npm audit`](/cli/v11/commands/npm-audit) for details on what is submitted.
+
+#### `before`
+
+- Default: null
+- Type: null or Date
+
+If passed to `npm install`, will rebuild the npm tree such that only versions that were available **on or before** the given date are installed. If there are no versions available for the current set of dependencies, the command will error.
+
+If the requested version is a `dist-tag` and the given tag does not pass the `--before` filter, the most recent version less than or equal to that tag will be used. For example, `foo@latest` might install `foo@1.2` even though `latest` is `2.0`.
+
+This config cannot be used with: `min-release-age`
+
+#### `min-release-age`
+
+- Default: null
+- Type: null or Number
+
+If set, npm will build the npm tree such that only versions that were available more than the given number of days ago will be installed. If there are no versions available for the current set of dependencies, the command will error.
+
+This flag is a complement to `before`, which accepts an exact date instead of a relative number of days.
+
+This config cannot be used with: `before`
+
+This value is not exported to the environment for child processes.
 
 #### `bin-links`
 

@@ -31,10 +31,6 @@ jobs:
           node-version: 22.x
           check-latest: contains('22.x', '.x')
           cache: npm
-      - name: Install Latest npm
-        uses: ./.github/actions/install-latest-npm
-        with:
-          node: ${{ steps.node.outputs.node-version }}
       - name: Install Dependencies
         run: npm i --no-audit --no-fund
       - name: Fetch Dependabot Metadata
@@ -55,7 +51,7 @@ jobs:
           else
             # strip leading slash from directory so it works as a
             # a path to the workspace flag
-            echo "workspace=-w ${dependabot_dir#/}" >> $GITHUB_OUTPUT
+            echo "workspace=--workspace ${dependabot_dir#/}" >> $GITHUB_OUTPUT
           fi
 
       - name: Apply Changes
